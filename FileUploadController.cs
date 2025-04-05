@@ -7,6 +7,7 @@ public class FileUploadController : ControllerBase
     private readonly string _uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "UploadedFiles");
 
     [HttpPost]
+    [RequestSizeLimit(512L * 1024 * 1024)] // 0.5GB
     public IActionResult UploadFile([FromForm] IFormFile file)
     {
         if (file == null || file.Length == 0)
