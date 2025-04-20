@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -18,7 +17,7 @@ public class FileRecordsController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult CreateFileRecord([FromBody] FileRecords fileRecord)
+    public IActionResult CreateFileRecord([FromBody] FileRecords fileRecord, IFormFile file)
     {
         if (fileRecord == null)
             return BadRequest("File record cannot be null.");
