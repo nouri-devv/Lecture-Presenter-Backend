@@ -5,15 +5,15 @@ using System.Text.Json.Serialization;
 
 [ApiController]
 [Route("api/llm-request")]
-public class LLMRequestController : ControllerBase
+public class LlmRequestController : ControllerBase
 {
     // These are used to make HTTP requests, log errors, and read configuration settings
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<LLMRequestController> _logger;
+    private readonly ILogger<LlmRequestController> _logger;
     private readonly IConfiguration _configuration;
 
     // Constructor - sets up the controller with necessary services
-    public LLMRequestController(IHttpClientFactory httpClientFactory, ILogger<LLMRequestController> logger, IConfiguration configuration)
+    public LlmRequestController(IHttpClientFactory httpClientFactory, ILogger<LlmRequestController> logger, IConfiguration configuration)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
