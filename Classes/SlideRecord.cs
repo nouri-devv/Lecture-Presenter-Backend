@@ -2,10 +2,12 @@ public class SlideRecord
 {
     public string SlideId { get; set; }
     public int SlideNumber { get; set; }
+    public string SlideLocation { get; set; }
 
-    public SlideRecord(string slideId, int slideNumber)
+    public SlideRecord(string slideId, int slideNumber, string slideLocation)
     {
         SlideId = slideId;
         SlideNumber = slideNumber;
+        SlideLocation = slideLocation;
     }
 }

@@ -10,14 +10,12 @@ public class LlmRequestController : ControllerBase
     // These are used to make HTTP requests, log errors, and read configuration settings
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<LlmRequestController> _logger;
-    private readonly IConfiguration _configuration;
 
     // Constructor - sets up the controller with necessary services
-    public LlmRequestController(IHttpClientFactory httpClientFactory, ILogger<LlmRequestController> logger, IConfiguration configuration)
+    public LlmRequestController(IHttpClientFactory httpClientFactory, ILogger<LlmRequestController> logger)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
-        _configuration = configuration;
     }
 
     [HttpPost()]
@@ -30,7 +28,7 @@ public class LlmRequestController : ControllerBase
 
             // Set up the HTTP client and API details
             var client = _httpClientFactory.CreateClient();
-            var apiKey = _configuration["Gemini:ApiKey"];
+            var apiKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={apiKey}";
 
             // Prepare the request body in the format Gemini API expects
@@ -50,7 +48,7 @@ public class LlmRequestController : ControllerBase
             };
 
             // Convert the request body to JSON
-            var jsonContent = System.Text.Json.JsonSerializer.Serialize(requestBody, 
+            var jsonContent = System.Text.Json.JsonSerializer.Serialize(requestBody,
                 new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
             var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
