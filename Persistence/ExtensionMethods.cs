@@ -1,6 +1,8 @@
 using Npgsql;
 using FastMember;
 
+// NOT USED YET
+
 public static class ExtensionMethods
 {
     public static void MapTo<T>(this NpgsqlDataReader dr, T entity)

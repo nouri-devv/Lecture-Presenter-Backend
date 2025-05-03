@@ -1,5 +1,7 @@
 using Npgsql;
 
+// NOT USED YET
+
 public interface IRepository
 {
     public List<T> ExecuteReader<T>(string sqlCommand, NpgsqlParameter[] dbParams = null) where T : class, new()
