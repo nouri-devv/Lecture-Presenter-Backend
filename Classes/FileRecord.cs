@@ -1,17 +1,17 @@
 public class FileRecord
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    public string FileId { get; set; }
+    public string FileName { get; set; }
     public string FileLocation { get; set; }
-    public DateTime CreatedTime { get; set; }
-    public List<SlideRecord> Slides { get; set; } = new List<SlideRecord>();
+    public DateTime FileCreatedTime { get; set; }
+    public List<SlideRecord> FileSlides { get; set; } = new List<SlideRecord>();
 
-    public FileRecord(string id, string name, string fileLocation, DateTime createdTime, List<SlideRecord> slides)
+    public FileRecord(string fileId, string fileName, string fileLocation, DateTime fileCreatedTime, List<SlideRecord> fileSlides)
     {
-        Id = id;
-        Name = name;
+        FileId = fileId;
+        FileName = fileName;
         FileLocation = fileLocation;
-        CreatedTime = createdTime;
-        Slides = slides;
+        FileCreatedTime = fileCreatedTime;
+        FileSlides = fileSlides;
     }
 }

@@ -21,7 +21,7 @@ public class FileRecordController : ControllerBase
     [HttpGet("{id}", Name = "GetFileRecordById")]
     public IActionResult GetFileRecordById(string id)
     {
-        var fileRecord = _FilesRecords.FirstOrDefault(fr => fr.Id == id);
+        var fileRecord = _FilesRecords.FirstOrDefault(fr => fr.FileId == id);
         if (fileRecord == null)
             return NotFound();
 
@@ -66,15 +66,15 @@ public class FileRecordController : ControllerBase
             }
 
             var newFileRecord = new FileRecord(
-                id: objectNameAndId,
-                name: objectNameAndId,
+                fileId: objectNameAndId,
+                fileName: objectNameAndId,
                 fileLocation: $"{BucketName}/{objectNameAndId}",
-                createdTime: DateTime.UtcNow,
-                slides: await ExtractSlidesFromFile(file, objectNameAndId)
+                fileCreatedTime: DateTime.UtcNow,
+                fileSlides: await ExtractSlidesFromFile(file, objectNameAndId)
             );
             _FilesRecords.Add(newFileRecord);
 
-            return CreatedAtAction(nameof(GetFileRecordById), new { id = newFileRecord.Id }, new { fileRecord = newFileRecord });
+            return CreatedAtAction(nameof(GetFileRecordById), new { id = newFileRecord.FileId }, new { fileRecord = newFileRecord });
         }
         catch (Exception ex)
         {

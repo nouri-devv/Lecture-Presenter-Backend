@@ -13,9 +13,22 @@ builder.Services.AddMinio(options =>
     options.AccessKey = Environment.GetEnvironmentVariable("MINIO_ACCESS_KEY");
     options.SecretKey = Environment.GetEnvironmentVariable("MINIO_SECRET_KEY");
 });
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowNextJS",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        });
+});
+
 
 var app = builder.Build();
 
 app.MapControllers();
+app.UseCors("AllowNextJS");
 app.MapGet("/", () => "Hello World!");
 app.Run();
