@@ -90,7 +90,7 @@ public class LlmRequestController : ControllerBase
         }
     }
 
-    [HttpPost("structured-summary")]
+    [HttpPost("structured-explanation")]
     public async Task<IActionResult> GenerateStructuredSummary([FromForm] IFormFile file)
     {
         try
@@ -106,31 +106,31 @@ public class LlmRequestController : ControllerBase
             var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}";
 
-            // Define the function (tool) for structured summary
+            // Updated function: TeachPage instead of summarizePage
             var toolDefinition = new
             {
                 function_declarations = new[]
                 {
                 new
                 {
-                    name = "summarizePage",
-                    description = "Expain the content of the specific page as if you were a professor and teaching to you students. Make sure it is concise and clear.",
+                    name = "teachPage",
+                    description = "Explain the content of a specific page like a university lecturer teaching students. Focus on clarity, breakdown of ideas, and pacing for audio delivery.",
                     parameters = new
                     {
                         type = "object",
                         properties = new
                         {
-                            pageNumber = new { type = "integer", description = "Page number of the document" },
-                            heading = new { type = "string", description = "Title or heading of the page" },
-                            summary = new { type = "string", description = "Short summary of the page content" }
+                            pageNumber = new { type = "integer", description = "Page number in the document" },
+                            heading = new { type = "string", description = "Main topic or heading of the page" },
+                            explanation = new { type = "string", description = "Detailed but clear explanation suitable for student listening (e.g., audio narration)" }
                         },
-                        required = new[] { "pageNumber", "heading", "summary" }
+                        required = new[] { "pageNumber", "heading", "explanation" }
                     }
                 }
             }
             };
 
-            // Prepare the request body
+            // Teaching-focused prompt
             var requestBody = new
             {
                 contents = new[]
@@ -142,17 +142,20 @@ public class LlmRequestController : ControllerBase
                     {
                         new
                         {
-                            text = @"You are a university lecturer explaining course material to students.
-                            For the attached PDF document, go through **each page one by one**.
-                            For each page, use the function `summarizePage` to:
-                            - Identify the **page number**
-                            - Extract or infer the **heading** or main topic
-                            - Write a **clear, concise explanation** of the key concepts as if teaching a class.
+                            text = @"You are a university lecturer creating audio explanations for course material.
 
-                            Avoid just summarizing. Instead, explain the **concepts**, break them down, and use simple teaching language.
-                            Give me the summary for each page as if the text is going to be used for audio narration.
-                            Make sure the explanations are **concise** and **clear** for audio narration.
-                            Ensure that each page is long enought to be used for audio narration."
+Go through each page of the attached PDF document.
+
+For **each page**, use the function `teachPage` to:
+- Identify the **page number**
+- Extract or infer the **main topic or heading**
+- Provide a **clear, structured explanation** of the content as if you are teaching it out loud to students.
+
+Use simple language, examples, and teaching analogies where possible. Your tone should be **engaging**, **educational**, and **paced for listening**.
+
+Do **not summarize**. Instead, **explain** the ideas — break down the content and help students truly understand the material.
+
+Assume this will be **used for audio narration**."
                         },
                         new
                         {
@@ -199,6 +202,7 @@ public class LlmRequestController : ControllerBase
             });
         }
     }
+
 
 }
 
