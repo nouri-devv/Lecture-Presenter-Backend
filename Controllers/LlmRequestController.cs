@@ -33,7 +33,7 @@ public class LlmRequestController : ControllerBase
             var base64File = Convert.ToBase64String(fileBytes);
 
             // Build the Gemini API request
-            var apiKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+            var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}";
 
             var requestBody = new
@@ -103,7 +103,7 @@ public class LlmRequestController : ControllerBase
             var fileBytes = memoryStream.ToArray();
             var base64File = Convert.ToBase64String(fileBytes);
 
-            var apiKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+            var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}";
 
             // Define the function (tool) for structured summary

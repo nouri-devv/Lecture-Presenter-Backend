@@ -5,6 +5,7 @@ public class FileRecord
     public string FileLocation { get; set; }
     public DateTime FileCreatedTime { get; set; }
     public List<SlideRecord> FileSlides { get; set; } = new List<SlideRecord>();
+    public int TotalSlides { get; set; }
 
     public FileRecord(string fileId, string fileName, string fileLocation, DateTime fileCreatedTime, List<SlideRecord> fileSlides)
     {
@@ -13,5 +14,6 @@ public class FileRecord
         FileLocation = fileLocation;
         FileCreatedTime = fileCreatedTime;
         FileSlides = fileSlides;
+        this.TotalSlides = fileSlides.Count;
     }
 }

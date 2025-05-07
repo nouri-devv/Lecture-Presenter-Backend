@@ -141,6 +141,44 @@ public class FileRecordController : ControllerBase
         return slides;
     }
 
+    [HttpGet("{fileId}/slides/{slideNumber}")]
+    public async Task<IActionResult> GetSlideByNumber(string fileId, int slideNumber)
+    {
+        Console.WriteLine($"Retrieving slide {slideNumber} for file {fileId}");
+        // Find the file record
+        var fileRecord = _FilesRecords.FirstOrDefault(fr => fr.FileId == fileId);
+        if (fileRecord == null)
+            return NotFound("File record not found");
+
+        // Find the specific slide
+        var slide = fileRecord.FileSlides.FirstOrDefault(s => s.SlideNumber == slideNumber);
+        if (slide == null)
+            return NotFound($"Slide number {slideNumber} not found");
+
+        try
+        {
+            // Get the slide from MinIO
+            var getObjectArgs = new GetObjectArgs()
+                .WithBucket(SlidesBucketName)
+                .WithObject($"{fileId}/slide_{slideNumber}_{slide.SlideId}");
+
+            using var memoryStream = new MemoryStream();
+
+            // writes directly to the memory stream
+            await _minioClient.GetObjectAsync(new GetObjectArgs()
+                .WithBucket(SlidesBucketName)
+                .WithObject($"{fileId}/slide_{slideNumber}_{slide.SlideId}")
+                .WithCallbackStream(stream => stream.CopyTo(memoryStream)));
+
+            memoryStream.Position = 0;
+            return File(memoryStream.ToArray(), "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Error retrieving slide: {ex.Message}");
+        }
+    }
+
     private int GetPdfPageCount(IFormFile file)
     {
         using (var stream = file.OpenReadStream())
