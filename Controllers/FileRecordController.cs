@@ -54,7 +54,6 @@ public class FileRecordController : ControllerBase
             // Upload file to MinIO
             using (var stream = file.OpenReadStream())
             {
-                Console.WriteLine($"Uploading file with content type: {file.ContentType}");
                 var putObjectArgs = new PutObjectArgs()
                     .WithBucket(BucketName)
                     .WithObject(objectNameAndId)
@@ -98,44 +97,84 @@ public class FileRecordController : ControllerBase
             await _minioClient.MakeBucketAsync(makeBucketArgs);
         }
 
-        using (var stream = file.OpenReadStream())
+        // Create temporary directory for processing
+        string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
         {
-            var sourceDocument = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
-
-            for (int pageNumber = 0; pageNumber < sourceDocument.PageCount; pageNumber++)
+            using (var stream = file.OpenReadStream())
             {
-                // Create a new document for each page
-                var slideDocument = new PdfSharpCore.Pdf.PdfDocument();
-                slideDocument.AddPage(sourceDocument.Pages[pageNumber]);
+                var sourceDocument = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
 
-                // Generate unique ID for the slide
-                string slideId = GenerateID.GenerateRandomId();
-                string slideObjectName = $"{fileId}/slide_{pageNumber + 1}_{slideId}";
-
-                // Save the single page to a memory stream
-                using (var memoryStream = new MemoryStream())
+                for (int pageNumber = 0; pageNumber < sourceDocument.PageCount; pageNumber++)
                 {
-                    slideDocument.Save(memoryStream);
-                    memoryStream.Position = 0;
+                    // Create a new document for each page
+                    var slideDocument = new PdfSharpCore.Pdf.PdfDocument();
+                    slideDocument.AddPage(sourceDocument.Pages[pageNumber]);
 
-                    // Upload to MinIO
-                    var putObjectArgs = new PutObjectArgs()
-                        .WithBucket(SlidesBucketName)
-                        .WithObject(slideObjectName)
-                        .WithStreamData(memoryStream)
-                        .WithObjectSize(memoryStream.Length)
-                        .WithContentType("application/pdf");
+                    // Generate unique ID for the slide
+                    string slideId = GenerateID.GenerateRandomId();
+                    string slideObjectName = $"{fileId}/slide_{pageNumber + 1}_{slideId}.png";
 
-                    await _minioClient.PutObjectAsync(putObjectArgs);
+                    // Save the single page PDF temporarily
+                    string tempPdfPath = Path.Combine(tempDir, $"temp_slide_{pageNumber + 1}.pdf");
+                    using (var fs = new FileStream(tempPdfPath, FileMode.Create))
+                    {
+                        slideDocument.Save(fs);
+                    }
+
+                    // Convert PDF to PNG using Python script
+                    string tempPngPath = Path.Combine(tempDir, $"temp_slide_{pageNumber + 1}.png");
+                    var processStartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "python3",
+                        Arguments = $"PDF2Image.py \"{tempPdfPath}\" \"{tempPngPath}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = System.Diagnostics.Process.Start(processStartInfo))
+                    {
+                        await process.WaitForExitAsync();
+                        if (process.ExitCode != 0)
+                        {
+                            throw new Exception($"PDF to image conversion failed: {await process.StandardError.ReadToEndAsync()}");
+                        }
+                    }
+
+                    // Upload PNG to MinIO
+                    using (var imageStream = new FileStream(tempPngPath, FileMode.Open))
+                    {
+                        var putObjectArgs = new PutObjectArgs()
+                            .WithBucket(SlidesBucketName)
+                            .WithObject(slideObjectName)
+                            .WithStreamData(imageStream)
+                            .WithObjectSize(imageStream.Length)
+                            .WithContentType("image/png");
+
+                        await _minioClient.PutObjectAsync(putObjectArgs);
+                    }
+
+                    // Add slide record
+                    slides.Add(new SlideRecord(
+                        slideId: slideId,
+                        slideNumber: pageNumber + 1,
+                        slideLocation: $"{SlidesBucketName}/{slideObjectName}"
+                    ));
+
+                    // Clean up temporary files
+                    System.IO.File.Delete(tempPdfPath);
+                    System.IO.File.Delete(tempPngPath);
                 }
-
-                // Add slide record
-                slides.Add(new SlideRecord(
-                    slideId: slideId,
-                    slideNumber: pageNumber + 1,
-                    slideLocation: $"{SlidesBucketName}/{slideObjectName}"
-                ));
             }
+        }
+        finally
+        {
+            // Clean up temporary directory
+            Directory.Delete(tempDir, true);
         }
 
         return slides;
@@ -144,34 +183,25 @@ public class FileRecordController : ControllerBase
     [HttpGet("{fileId}/slides/{slideNumber}")]
     public async Task<IActionResult> GetSlideByNumber(string fileId, int slideNumber)
     {
-        Console.WriteLine($"Retrieving slide {slideNumber} for file {fileId}");
-        // Find the file record
         var fileRecord = _FilesRecords.FirstOrDefault(fr => fr.FileId == fileId);
         if (fileRecord == null)
             return NotFound("File record not found");
 
-        // Find the specific slide
         var slide = fileRecord.FileSlides.FirstOrDefault(s => s.SlideNumber == slideNumber);
         if (slide == null)
             return NotFound($"Slide number {slideNumber} not found");
 
         try
         {
-            // Get the slide from MinIO
-            var getObjectArgs = new GetObjectArgs()
-                .WithBucket(SlidesBucketName)
-                .WithObject($"{fileId}/slide_{slideNumber}_{slide.SlideId}");
-
             using var memoryStream = new MemoryStream();
 
-            // writes directly to the memory stream
             await _minioClient.GetObjectAsync(new GetObjectArgs()
                 .WithBucket(SlidesBucketName)
-                .WithObject($"{fileId}/slide_{slideNumber}_{slide.SlideId}")
+                .WithObject($"{fileId}/slide_{slideNumber}_{slide.SlideId}.png")
                 .WithCallbackStream(stream => stream.CopyTo(memoryStream)));
 
             memoryStream.Position = 0;
-            return File(memoryStream.ToArray(), "application/pdf");
+            return File(memoryStream.ToArray(), "image/png");
         }
         catch (Exception ex)
         {
