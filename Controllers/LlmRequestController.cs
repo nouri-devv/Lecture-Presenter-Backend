@@ -1,3 +1,4 @@
+/* Achived, no longer used
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Text;
@@ -210,3 +211,4 @@ public class GenerateContentRequest
 {
     public string Text { get; set; }
 }
+*/
