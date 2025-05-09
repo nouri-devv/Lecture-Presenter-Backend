@@ -58,7 +58,7 @@ def main(pdf_path, session_id):
         secure=False  # Set to True if using HTTPS
     )
 
-    images = convert_from_path(pdf_path, dpi=200)
+    images = convert_from_path(pdf_path, dpi=130)
     slide_records = []
 
     with tempfile.TemporaryDirectory() as temp_dir:

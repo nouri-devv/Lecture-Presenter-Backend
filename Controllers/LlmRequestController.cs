@@ -104,9 +104,8 @@ public class LlmRequestController : ControllerBase
             var base64File = Convert.ToBase64String(fileBytes);
 
             var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
-            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}";
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
 
-            // Updated function: TeachPage instead of summarizePage
             var toolDefinition = new
             {
                 function_declarations = new[]
