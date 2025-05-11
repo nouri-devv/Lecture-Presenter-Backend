@@ -256,76 +256,41 @@ Assume this will be **used for audio narration**."
 
         var result = new List<LlmResponseRecord>();
 
-        try
+        // Parse Gemini response with safe access to properties
+        var parsed = JsonSerializer.Deserialize<JsonElement>(responseContent);
+
+        // Check if the response contains the expected structure
+        if (parsed.TryGetProperty("candidates", out var candidates) &&
+            candidates.GetArrayLength() > 0 &&
+            candidates[0].TryGetProperty("content", out var content) &&
+            content.TryGetProperty("parts", out var parts))
         {
-            // Parse Gemini response with safe access to properties
-            var parsed = JsonSerializer.Deserialize<JsonElement>(responseContent);
-
-            // Check if the response contains the expected structure
-            if (parsed.TryGetProperty("candidates", out var candidates) &&
-                candidates.GetArrayLength() > 0 &&
-                candidates[0].TryGetProperty("content", out var content) &&
-                content.TryGetProperty("parts", out var parts))
+            foreach (var part in parts.EnumerateArray())
             {
-                foreach (var part in parts.EnumerateArray())
+                if (part.TryGetProperty("functionCall", out JsonElement functionCall) &&
+                    functionCall.TryGetProperty("name", out var name) &&
+                    name.GetString() == "teachPage" &&
+                    functionCall.TryGetProperty("args", out JsonElement args))
                 {
-                    if (part.TryGetProperty("functionCall", out JsonElement functionCall) &&
-                        functionCall.TryGetProperty("name", out var name) &&
-                        name.GetString() == "teachPage" &&
-                        functionCall.TryGetProperty("args", out JsonElement args))
+                    // Extract values safely
+                    var heading = args.TryGetProperty("heading", out var h) ? h.GetString() : "Untitled";
+                    var explanation = args.TryGetProperty("explanation", out var e) ? e.GetString() : "No explanation provided";
+                    var pageNumber = args.TryGetProperty("pageNumber", out var p) && p.TryGetInt32(out int pageNum) ? pageNum : 0;
+
+                    var llmResponse = new LlmResponseRecord
                     {
-                        // Extract values safely
-                        var heading = args.TryGetProperty("heading", out var h) ? h.GetString() : "Untitled";
-                        var explanation = args.TryGetProperty("explanation", out var e) ? e.GetString() : "No explanation provided";
-                        var pageNumber = args.TryGetProperty("pageNumber", out var p) && p.TryGetInt32(out int pageNum) ? pageNum : 0;
+                        LlmResponseId = Guid.NewGuid().ToString(),
+                        SessionId = sessionId,
+                        LlmResponseNumber = pageNumber,
+                        LlmResponseHeading = heading,
+                        LlmResponseExplanation = explanation
+                    };
 
-                        var llmResponse = new LlmResponseRecord
-                        {
-                            LlmResponseId = Guid.NewGuid().ToString(),
-                            SessionId = sessionId,
-                            LlmResponseNumber = pageNumber,
-                            LlmResponseHeading = heading,
-                            LlmResponseExplanation = explanation
-                        };
-
-                        // Save to database
-                        var savedResponse = _llmResponseRepo.AddLlmResponseRecord(llmResponse);
-                        result.Add(savedResponse);
-                    }
+                    // Save to database
+                    _llmResponseRepo.AddLlmResponseRecord(llmResponse);
+                    result.Add(llmResponse);
                 }
             }
-            else
-            {
-                // Add a fallback response record
-                var fallbackResponse = new LlmResponseRecord
-                {
-                    LlmResponseId = Guid.NewGuid().ToString(),
-                    SessionId = sessionId,
-                    LlmResponseNumber = 1,
-                    LlmResponseHeading = "API Response Format Error",
-                    LlmResponseExplanation = "The system encountered an unexpected response format from the AI service. Please try again later."
-                };
-
-                // Save to database
-                var savedFallback = _llmResponseRepo.AddLlmResponseRecord(fallbackResponse);
-                result.Add(savedFallback);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Add an error response record
-            var errorResponse = new LlmResponseRecord
-            {
-                LlmResponseId = Guid.NewGuid().ToString(),
-                SessionId = sessionId,
-                LlmResponseNumber = 1,
-                LlmResponseHeading = "Processing Error",
-                LlmResponseExplanation = "An error occurred while processing the document. Please try again later."
-            };
-
-            // Save to database
-            var savedError = _llmResponseRepo.AddLlmResponseRecord(errorResponse);
-            result.Add(savedError);
         }
 
         return result;
@@ -346,7 +311,7 @@ Assume this will be **used for audio narration**."
 
         // Convert the result of Task.WhenAll to a List<AudioRecord>
         var audioRecordsArray = await Task.WhenAll(audioTasks);
-        return audioRecordsArray.ToList();  // Convert array to List<AudioRecord>
+        return audioRecordsArray.ToList();
     }
 
     private async Task<AudioRecord> GenerateAndStoreTtsAudio(string text, int recordNumber, string bucketStructure, string sessionId)
@@ -370,65 +335,46 @@ Assume this will be **used for audio narration**."
         if (!response.IsSuccessStatusCode)
             throw new Exception($"TTS API request failed: {responseBody}");
 
-        try
-        {
-            var responseJson = JsonSerializer.Deserialize<JsonElement>(responseBody);
+        var responseJson = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
-            // Safely access the audioContent property
-            if (responseJson.TryGetProperty("audioContent", out var audioContentElement) &&
-                audioContentElement.ValueKind == JsonValueKind.String)
+        // Safely access the audioContent property
+        if (responseJson.TryGetProperty("audioContent", out var audioContentElement) &&
+            audioContentElement.ValueKind == JsonValueKind.String)
+        {
+            var audioBase64 = audioContentElement.GetString();
+            if (!string.IsNullOrEmpty(audioBase64))
             {
-                var audioBase64 = audioContentElement.GetString();
-                if (!string.IsNullOrEmpty(audioBase64))
+                var audioBytes = Convert.FromBase64String(audioBase64);
+
+                string audioFileName = $"audio_{recordNumber:D3}.mp3";
+                string objectName = $"{bucketStructure}/audio/{audioFileName}";
+
+                using var audioStream = new MemoryStream(audioBytes);
+
+                var putObjectArgs = new PutObjectArgs()
+                    .WithBucket(BucketName)
+                    .WithObject(objectName)
+                    .WithStreamData(audioStream)
+                    .WithObjectSize(audioBytes.Length)
+                    .WithContentType("audio/mpeg");
+                await _minioClient.PutObjectAsync(putObjectArgs);
+
+                // Create audio record
+                var audioRecord = new AudioRecord
                 {
-                    var audioBytes = Convert.FromBase64String(audioBase64);
+                    AudioRecordId = Guid.NewGuid().ToString(),
+                    SessionId = sessionId,
+                    AudioRecordNumber = recordNumber,
+                    AudioRecordLocation = objectName
+                };
 
-                    string audioFileName = $"audio_{recordNumber}.mp3";
-                    string objectName = $"{bucketStructure}/audio/{audioFileName}";
-
-                    using var audioStream = new MemoryStream(audioBytes);
-
-                    var putObjectArgs = new PutObjectArgs()
-                        .WithBucket(BucketName)
-                        .WithObject(objectName)
-                        .WithStreamData(audioStream)
-                        .WithObjectSize(audioBytes.Length)
-                        .WithContentType("audio/mpeg");
-                    await _minioClient.PutObjectAsync(putObjectArgs);
-
-                    // Create audio record
-                    var audioRecord = new AudioRecord
-                    {
-                        AudioRecordId = Guid.NewGuid().ToString(),
-                        SessionId = sessionId,
-                        AudioRecordNumber = recordNumber,
-                        AudioRecordLocation = objectName
-                    };
-
-                    // Save to database
-                    return _audioRepo.AddAudioRecord(audioRecord);
-                }
+                // Save to database
+                _audioRepo.AddAudioRecord(audioRecord);
+                return audioRecord;
             }
-
-            // If we get here, something went wrong with the response format
-            throw new Exception("Invalid TTS API response format");
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error processing TTS response: {ex.Message}");
-            Console.WriteLine($"Response body: {responseBody}");
 
-            // Create placeholder record with error information
-            var errorAudioRecord = new AudioRecord
-            {
-                AudioRecordId = Guid.NewGuid().ToString(),
-                SessionId = sessionId,
-                AudioRecordNumber = recordNumber,
-                AudioRecordLocation = "Error: Unable to generate audio"
-            };
-
-            // Save to database even if it's an error record
-            return _audioRepo.AddAudioRecord(errorAudioRecord);
-        }
+        // If we get here, something went wrong with the response format
+        throw new Exception("Invalid TTS API response format");
     }
 }
