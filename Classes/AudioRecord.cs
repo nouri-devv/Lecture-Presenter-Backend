@@ -4,9 +4,7 @@ public class AudioRecord
     public int AudioRecordNumber { get; set; }
     public string AudioRecordLocation { get; set; }
 
-    public AudioRecord(string audioRecordId, string audioRecordLocation)
+    public AudioRecord()
     {
-        AudioRecordId = audioRecordId;
-        AudioRecordLocation = audioRecordLocation;
     }
 }

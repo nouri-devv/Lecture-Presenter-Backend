@@ -4,10 +4,7 @@ public class SlideRecord
     public int SlideNumber { get; set; }
     public string SlideLocation { get; set; }
 
-    public SlideRecord(string slideId, int slideNumber, string slideLocation)
+    public SlideRecord()
     {
-        SlideId = slideId;
-        SlideNumber = slideNumber;
-        SlideLocation = slideLocation;
     }
 }

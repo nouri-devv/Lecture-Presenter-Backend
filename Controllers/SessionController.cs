@@ -8,7 +8,7 @@ using Minio.DataModel.Args;
 
 [ApiController]
 [Route("api/new-session")]
-public class UploadController : ControllerBase
+public class SessionController : ControllerBase
 {
     private static readonly List<SessionRecord> _SessionRecord = new List<SessionRecord>();
     private readonly IMinioClient _minioClient;
@@ -16,10 +16,73 @@ public class UploadController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
 
 
-    public UploadController(IMinioClient minioClient, IHttpClientFactory httpClientFactory)
+    public SessionController(IMinioClient minioClient, IHttpClientFactory httpClientFactory)
     {
         _minioClient = minioClient;
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateNewSession(IFormFile file)
+    {
+        try
+        {
+            if (file == null)
+                return BadRequest("File record cannot be null.");
+
+            string sessionId = GenerateID.GenerateRandomId();
+            var bucketStructure = $"sessions/{sessionId}";
+
+            // Start both tasks
+            var slideTask = HandleSlideRecords(file, bucketStructure);
+            var llmTask = HandleLlmResponseRecords(file);
+
+            // Wait for both to complete
+            await Task.WhenAll(slideTask, llmTask);
+
+            var slideRecords = await slideTask;
+            var llmResponseRecords = await llmTask;
+
+            var audioTasks = new List<Task<AudioRecord>>();
+            foreach (var resp in llmResponseRecords)
+            {
+                // Ensure the explanation is not null or empty before sending to TTS
+                string explanation = !string.IsNullOrEmpty(resp.ResponseExplanation)
+                    ? resp.ResponseExplanation
+                    : "No explanation available for this section.";
+
+                audioTasks.Add(GenerateAndStoreTtsAudio(explanation, resp.LlmReponseNumber, bucketStructure));
+            }
+
+            var audioRecords = await Task.WhenAll(audioTasks);
+
+            var newSessionRecord = new SessionRecord(
+                sessionId,
+                DateTime.UtcNow,
+                DateTime.UtcNow,
+                slideRecords,
+                llmResponseRecords,
+                audioRecords.ToList()
+            );
+
+            _SessionRecord.Add(newSessionRecord);
+
+            return Ok(newSessionRecord);
+        }
+        catch (Exception ex)
+        {
+            // Log the error
+            Console.WriteLine($"Error creating file record: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+            // Return detailed error for debugging
+            return StatusCode(500, new
+            {
+                error = "An error occurred while processing the file",
+                message = ex.Message,
+                stackTrace = ex.StackTrace
+            });
+        }
     }
 
     private string GetProjectRoot()
@@ -324,69 +387,6 @@ Assume this will be **used for audio narration**."
             {
                 AudioRecordNumber = recordNumber
             };
-        }
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateFileRecord(IFormFile file)
-    {
-        try
-        {
-            if (file == null)
-                return BadRequest("File record cannot be null.");
-
-            string sessionId = GenerateID.GenerateRandomId();
-            var bucketStructure = $"sessions/{sessionId}";
-
-            // Start both tasks
-            var slideTask = HandleSlideRecords(file, bucketStructure);
-            var llmTask = HandleLlmResponseRecords(file);
-
-            // Wait for both to complete
-            await Task.WhenAll(slideTask, llmTask);
-
-            var slideRecords = await slideTask;
-            var llmResponseRecords = await llmTask;
-
-            var audioTasks = new List<Task<AudioRecord>>();
-            foreach (var resp in llmResponseRecords)
-            {
-                // Ensure the explanation is not null or empty before sending to TTS
-                string explanation = !string.IsNullOrEmpty(resp.ResponseExplanation)
-                    ? resp.ResponseExplanation
-                    : "No explanation available for this section.";
-
-                audioTasks.Add(GenerateAndStoreTtsAudio(explanation, resp.LlmReponseNumber, bucketStructure));
-            }
-
-            var audioRecords = await Task.WhenAll(audioTasks);
-
-            var newSessionRecord = new SessionRecord(
-                sessionId,
-                DateTime.UtcNow,
-                DateTime.UtcNow,
-                slideRecords,
-                llmResponseRecords,
-                audioRecords.ToList()
-            );
-
-            _SessionRecord.Add(newSessionRecord);
-
-            return Ok(newSessionRecord);
-        }
-        catch (Exception ex)
-        {
-            // Log the error
-            Console.WriteLine($"Error creating file record: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-
-            // Return detailed error for debugging
-            return StatusCode(500, new
-            {
-                error = "An error occurred while processing the file",
-                message = ex.Message,
-                stackTrace = ex.StackTrace
-            });
         }
     }
 }

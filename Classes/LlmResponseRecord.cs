@@ -1,15 +1,11 @@
 public class LlmResponseRecord
 {
-    public string ResponseId { get; set; }
-    public int LlmReponseNumber { get; set; }
-    public string ResponseHeading { get; set; }
-    public string ResponseExplanation { get; set; }
+    public string LlmResponseId { get; set; }
+    public int LlmResponseNumber { get; set; }
+    public string LlmResponseHeading { get; set; }
+    public string LlmResponseExplanation { get; set; }
 
-    public LlmResponseRecord(string responseId, int llmReponseNumber, string responseHeading, string responseExplanation)
+    public LlmResponseRecord()
     {
-        ResponseId = responseId;
-        LlmReponseNumber = llmReponseNumber;
-        ResponseHeading = responseHeading;
-        ResponseExplanation = responseExplanation;
     }
 }

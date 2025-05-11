@@ -1,3 +1,4 @@
+using DotNetEnv;
 using Npgsql;
 
 // NOT USED YET
@@ -7,7 +8,7 @@ public interface IRepository
     public List<T> ExecuteReader<T>(string sqlCommand, NpgsqlParameter[] dbParams = null) where T : class, new()
     {
         var entities = new List<T>();
-        const string CONNECTION_STRING = "Host=localhost;Username=postgres;Password=password;Database=Andromeda - Database";
+        string CONNECTION_STRING = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ?? throw new InvalidOperationException("DB_CONNECTION_STRING environment variable is not set");
 
         using var conn = new NpgsqlConnection(CONNECTION_STRING);
         conn.Open();

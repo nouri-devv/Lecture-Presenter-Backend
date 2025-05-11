@@ -7,13 +7,7 @@ public class SessionRecord
     public List<LlmResponseRecord> LlmResponses { get; set; } = new List<LlmResponseRecord>();
     public List<AudioRecord> AudioRecords { get; set; } = new List<AudioRecord>();
 
-    public SessionRecord(string sessionId, DateTime createdDate, DateTime lastModifiedDate, List<SlideRecord> slideRecords, List<LlmResponseRecord> llmResponseRecords, List<AudioRecord> audioRecords)
+    public SessionRecord()
     {
-        SessionId = sessionId;
-        CreatedDate = createdDate;
-        LastModifiedDate = lastModifiedDate;
-        SlideRecords = slideRecords;
-        LlmResponses = llmResponseRecords;
-        AudioRecords = audioRecords;
     }
 }
