@@ -19,7 +19,7 @@ public class AudioRespository : IRepository, IAudioDataAccess
             "INSERT INTO audio (audio_id, session_id, audio_number, audio_location) " +
             "VALUES (@audio_id, @session_id, @audio_number, @audio_location) " +
             "RETURNING audio_id, session_id, audio_number, audio_location",
-            sqlParameters).Single();
+            sqlParameters).SingleOrDefault();
 
         return result;
     }
@@ -32,7 +32,7 @@ public class AudioRespository : IRepository, IAudioDataAccess
         };
         var result = _repository.ExecuteReader<AudioRecord>(
             "SELECT * FROM audio WHERE audio_id = @audio_id AND session_id = @session_id",
-            sqlParameters).Single();
+            sqlParameters).SingleOrDefault();
 
         return result;
     }

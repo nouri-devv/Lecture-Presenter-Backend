@@ -103,7 +103,7 @@ public class SessionController : ControllerBase
 
     private async Task<List<SlideRecord>> HandleSlideRecords(byte[] fileContent, string bucketStructure, string sessionId)
     {
-        var slideRecords = new List<SlideRecord>();
+        var response = new List<SlideRecord>();
         string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
         string tempPdfPath = Path.Combine(tempDir, "upload.pdf");
@@ -147,11 +147,15 @@ public class SessionController : ControllerBase
             // Save each slide record to the database
             foreach (var slide in parsedSlideRecords)
             {
-                // Create slide in the database
-
-                slide.SessionId = sessionId;
-                var savedSlide = _slideRepo.CreateSlide(slide);
-                slideRecords.Add(savedSlide);
+                var slideRecord = new SlideRecord
+                {
+                    SlideId = slide.SlideId,
+                    SessionId = sessionId,
+                    SlideNumber = slide.SlideNumber,
+                    SlideLocation = slide.SlideLocation
+                };
+                _slideRepo.CreateSlide(slideRecord);
+                response.Add(slideRecord);
             }
         }
         finally
@@ -161,7 +165,7 @@ public class SessionController : ControllerBase
                 Directory.Delete(tempDir, true);
         }
 
-        return slideRecords;
+        return response;
     }
 
     private async Task<List<LlmResponseRecord>> HandleLlmResponseRecords(byte[] fileContent, string sessionId)

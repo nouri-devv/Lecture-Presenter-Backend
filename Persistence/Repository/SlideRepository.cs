@@ -19,7 +19,7 @@ public class SlideRepository : ISlideDataAccess, IRepository
                 "INSERT INTO slides (slide_id, session_id, slide_number, slide_location) " +
                 "VALUES (@slide_id, @session_id, @slide_number, @slide_location) " +
                 "RETURNING slide_id, session_id, slide_number, slide_location",
-                sqlParam).Single();
+                sqlParam).SingleOrDefault();
 
             return result;
         }
@@ -35,7 +35,7 @@ public class SlideRepository : ISlideDataAccess, IRepository
         var result = _repository.ExecuteReader<SlideRecord>(
             "SELECT slide_id, slide_number, slide_location " +
             "FROM slides WHERE session_id = @session_id AND slide_number = @slide_number",
-            sqlParam).Single();
+            sqlParam).SingleOrDefault();
 
         return result;
     }

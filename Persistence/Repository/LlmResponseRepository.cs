@@ -19,7 +19,7 @@ public class LlmResponseRepository : LlmResponseRecordDataAccess, IRepository
             "VALUES (@llm_response_id, @session_id, @llm_response_number, @response_heading, @response_explanation) " +
             "RETURNING llm_response_id, session_id, llm_response_number, response_heading, response_explanation",
             sqlParam
-        ).Single();
+        ).SingleOrDefault();
 
         return result;
     }
@@ -34,7 +34,7 @@ public class LlmResponseRepository : LlmResponseRecordDataAccess, IRepository
         var result = _repository.ExecuteReader<LlmResponseRecord>(
             "SELECT * FROM llm_response WHERE session_id = @session_id AND llm_response_number = @llm_response_number",
             sqlParam
-        ).Single();
+        ).SingleOrDefault();
 
         return result;
     }

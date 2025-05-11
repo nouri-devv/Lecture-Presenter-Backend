@@ -17,7 +17,7 @@ public class SessionRepository : ISessionDataAccess, IRepository
             "INSERT INTO sessions (session_id, created_date, last_modified_date) " +
             "VALUES (@session_id, @created_date, @last_modified_date) " +
             "RETURNING session_id, created_date, last_modified_date",
-            sqlParam).Single();
+            sqlParam).SingleOrDefault();
 
         return result;
     }
