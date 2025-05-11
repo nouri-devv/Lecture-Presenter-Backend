@@ -4,7 +4,7 @@ public class SessionRepository : ISessionDataAccess, IRepository
 {
     private IRepository _repository => this;
 
-    public SessionRecord CreateSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate)
+    public SessionRecord AddSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate)
     {
         var sqlParam = new NpgsqlParameter[]
         {

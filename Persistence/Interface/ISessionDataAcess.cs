@@ -1,4 +1,4 @@
 public interface ISessionDataAccess
 {
-    SessionRecord CreateSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate);
+    SessionRecord AddSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate);
 }

@@ -5,77 +5,87 @@ using System.Text.Json;
 using System.Net.Http.Headers;
 using System.Text;
 using Minio.DataModel.Args;
+using Sprache;
+using System.Runtime.InteropServices.JavaScript;
 
 [ApiController]
 [Route("api/new-session")]
 public class SessionController : ControllerBase
 {
-    private static readonly List<SessionRecord> _SessionRecord = new List<SessionRecord>();
+    private readonly ISessionDataAccess _sessionRepo;
+    private readonly ISlideDataAccess _slideRepo;
+    private readonly LlmResponseRecordDataAccess _llmResponseRepo;
+    private readonly IAudioDataAccess _audioRepo;
     private readonly IMinioClient _minioClient;
-    private const string BucketName = "storage";
     private readonly IHttpClientFactory _httpClientFactory;
+    private const string BucketName = "storage";
 
-
-    public SessionController(IMinioClient minioClient, IHttpClientFactory httpClientFactory)
+    public SessionController(
+        ISessionDataAccess sessionRepo,
+        ISlideDataAccess slideRepo,
+        LlmResponseRecordDataAccess llmResponseRepo,
+        IAudioDataAccess audioRepo,
+        IMinioClient minioClient,
+        IHttpClientFactory httpClientFactory)
     {
-        _minioClient = minioClient;
+        _sessionRepo = sessionRepo ?? throw new ArgumentNullException(nameof(sessionRepo));
+        _slideRepo = slideRepo ?? throw new ArgumentNullException(nameof(slideRepo));
+        _llmResponseRepo = llmResponseRepo ?? throw new ArgumentNullException(nameof(llmResponseRepo));
+        _audioRepo = audioRepo ?? throw new ArgumentNullException(nameof(audioRepo));
+        _minioClient = minioClient ?? throw new ArgumentNullException(nameof(minioClient));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateNewSession(IFormFile file)
+    public async Task<IActionResult> CreateSession(IFormFile file)
     {
         try
         {
             if (file == null)
                 return BadRequest("File record cannot be null.");
 
-            string sessionId = GenerateID.GenerateRandomId();
+            // Read file content once
+            byte[] fileContent;
+            using (var memoryStream = new MemoryStream())
+            {
+                await file.CopyToAsync(memoryStream);
+                fileContent = memoryStream.ToArray();
+            }
+
+            // Generate unique identifiers for the session
+            var sessionId = Guid.NewGuid().ToString();
             var bucketStructure = $"sessions/{sessionId}";
 
-            // Start both tasks
-            var slideTask = HandleSlideRecords(file, bucketStructure);
-            var llmTask = HandleLlmResponseRecords(file);
+            // Create session in database
+            _sessionRepo.AddSession(sessionId, DateTime.UtcNow, DateTime.UtcNow);
 
-            // Wait for both to complete
+            // Process slides and LLM responses in parallel
+            var slideTask = HandleSlideRecords(fileContent, bucketStructure, sessionId);
+            var llmTask = HandleLlmResponseRecords(fileContent, sessionId);
+
             await Task.WhenAll(slideTask, llmTask);
 
             var slideRecords = await slideTask;
             var llmResponseRecords = await llmTask;
 
-            var audioTasks = new List<Task<AudioRecord>>();
-            foreach (var resp in llmResponseRecords)
+            // Process audio files
+            var audioRecords = await HandleAudioRecords(llmResponseRecords, bucketStructure, sessionId);
+
+            var response = new
             {
-                // Ensure the explanation is not null or empty before sending to TTS
-                string explanation = !string.IsNullOrEmpty(resp.ResponseExplanation)
-                    ? resp.ResponseExplanation
-                    : "No explanation available for this section.";
+                SessionId = sessionId,
+                SlideRecords = slideRecords,
+                LlmResponseRecords = llmResponseRecords,
+                AudioRecords = audioRecords
+            };
 
-                audioTasks.Add(GenerateAndStoreTtsAudio(explanation, resp.LlmReponseNumber, bucketStructure));
-            }
-
-            var audioRecords = await Task.WhenAll(audioTasks);
-
-            var newSessionRecord = new SessionRecord(
-                sessionId,
-                DateTime.UtcNow,
-                DateTime.UtcNow,
-                slideRecords,
-                llmResponseRecords,
-                audioRecords.ToList()
-            );
-
-            _SessionRecord.Add(newSessionRecord);
-
-            return Ok(newSessionRecord);
+            return Ok(response);
         }
         catch (Exception ex)
         {
-            // Log the error
             Console.WriteLine($"Error creating file record: {ex.Message}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
 
-            // Return detailed error for debugging
             return StatusCode(500, new
             {
                 error = "An error occurred while processing the file",
@@ -91,22 +101,17 @@ public class SessionController : ControllerBase
         return Path.GetFullPath(Path.Combine(dir, "..", "..", ".."));
     }
 
-    async Task<List<SlideRecord>> HandleSlideRecords(IFormFile file, string bucketStructure)
+    private async Task<List<SlideRecord>> HandleSlideRecords(byte[] fileContent, string bucketStructure, string sessionId)
     {
         var slideRecords = new List<SlideRecord>();
-
-        // Create temporary directory and save the uploaded file
         string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
         string tempPdfPath = Path.Combine(tempDir, "upload.pdf");
 
         try
         {
-            // Save the uploaded file to disk
-            using (var fileStream = new FileStream(tempPdfPath, FileMode.Create))
-            {
-                await file.CopyToAsync(fileStream);
-            }
+            // Write the file content to disk
+            await System.IO.File.WriteAllBytesAsync(tempPdfPath, fileContent);
 
             // Run the Python script
             var processStartInfo = new System.Diagnostics.ProcessStartInfo
@@ -131,13 +136,23 @@ public class SessionController : ControllerBase
             }
 
             // Parse JSON from stdout
-            slideRecords = System.Text.Json.JsonSerializer.Deserialize<List<SlideRecord>>(stdout, new System.Text.Json.JsonSerializerOptions
+            var parsedSlideRecords = System.Text.Json.JsonSerializer.Deserialize<List<SlideRecord>>(stdout, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
-            if (slideRecords == null)
+            if (parsedSlideRecords == null)
                 throw new Exception("Failed to deserialize slide records from Python script.");
+
+            // Save each slide record to the database
+            foreach (var slide in parsedSlideRecords)
+            {
+                // Create slide in the database
+
+                slide.SessionId = sessionId;
+                var savedSlide = _slideRepo.CreateSlide(slide);
+                slideRecords.Add(savedSlide);
+            }
         }
         finally
         {
@@ -149,12 +164,9 @@ public class SessionController : ControllerBase
         return slideRecords;
     }
 
-    async Task<List<LlmResponseRecord>> HandleLlmResponseRecords(IFormFile file)
+    private async Task<List<LlmResponseRecord>> HandleLlmResponseRecords(byte[] fileContent, string sessionId)
     {
-        using var memoryStream = new MemoryStream();
-        await file.CopyToAsync(memoryStream);
-        var fileBytes = memoryStream.ToArray();
-        var base64File = Convert.ToBase64String(fileBytes);
+        var base64File = Convert.ToBase64String(fileContent);
 
         var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
@@ -263,58 +275,77 @@ Assume this will be **used for audio narration**."
                         var explanation = args.TryGetProperty("explanation", out var e) ? e.GetString() : "No explanation provided";
                         var pageNumber = args.TryGetProperty("pageNumber", out var p) && p.TryGetInt32(out int pageNum) ? pageNum : 0;
 
-                        result.Add(new LlmResponseRecord(
-                            responseId: Guid.NewGuid().ToString(),
-                            llmReponseNumber: pageNumber,
-                            responseHeading: heading,
-                            responseExplanation: explanation
-                        ));
+                        var llmResponse = new LlmResponseRecord
+                        {
+                            LlmResponseId = Guid.NewGuid().ToString(),
+                            SessionId = sessionId,
+                            LlmResponseNumber = pageNumber,
+                            LlmResponseHeading = heading,
+                            LlmResponseExplanation = explanation
+                        };
+
+                        // Save to database
+                        var savedResponse = _llmResponseRepo.AddLlmResponseRecord(llmResponse);
+                        result.Add(savedResponse);
                     }
                 }
             }
             else
             {
-                // Handle unexpected response format
-                Console.WriteLine($"Unexpected API response format: {responseContent}");
-
                 // Add a fallback response record
-                result.Add(new LlmResponseRecord(
-                    responseId: Guid.NewGuid().ToString(),
-                    llmReponseNumber: 1,
-                    responseHeading: "API Response Format Error",
-                    responseExplanation: "The system encountered an unexpected response format from the AI service. Please try again later."
-                ));
+                var fallbackResponse = new LlmResponseRecord
+                {
+                    LlmResponseId = Guid.NewGuid().ToString(),
+                    SessionId = sessionId,
+                    LlmResponseNumber = 1,
+                    LlmResponseHeading = "API Response Format Error",
+                    LlmResponseExplanation = "The system encountered an unexpected response format from the AI service. Please try again later."
+                };
+
+                // Save to database
+                var savedFallback = _llmResponseRepo.AddLlmResponseRecord(fallbackResponse);
+                result.Add(savedFallback);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing LLM response: {ex.Message}");
-            Console.WriteLine($"Response content: {responseContent}");
-
             // Add an error response record
-            result.Add(new LlmResponseRecord(
-                responseId: Guid.NewGuid().ToString(),
-                llmReponseNumber: 1,
-                responseHeading: "Processing Error",
-                responseExplanation: "An error occurred while processing the document. Please try again later."
-            ));
-        }
+            var errorResponse = new LlmResponseRecord
+            {
+                LlmResponseId = Guid.NewGuid().ToString(),
+                SessionId = sessionId,
+                LlmResponseNumber = 1,
+                LlmResponseHeading = "Processing Error",
+                LlmResponseExplanation = "An error occurred while processing the document. Please try again later."
+            };
 
-        // Ensure we have at least one record
-        if (result.Count == 0)
-        {
-            result.Add(new LlmResponseRecord(
-                responseId: Guid.NewGuid().ToString(),
-                llmReponseNumber: 1,
-                responseHeading: "No Content Generated",
-                responseExplanation: "No content could be generated from the document. Please check the file and try again."
-            ));
+            // Save to database
+            var savedError = _llmResponseRepo.AddLlmResponseRecord(errorResponse);
+            result.Add(savedError);
         }
 
         return result;
     }
 
-    private async Task<AudioRecord> GenerateAndStoreTtsAudio(string text, int recordNumber, string bucketStructure)
+    private async Task<List<AudioRecord>> HandleAudioRecords(List<LlmResponseRecord> llmResponses, string bucketStructure, string sessionId)
+    {
+        var audioTasks = new List<Task<AudioRecord>>();
+
+        foreach (var resp in llmResponses)
+        {
+            string explanation = !string.IsNullOrEmpty(resp.LlmResponseExplanation)
+                ? resp.LlmResponseExplanation
+                : "No explanation available for this section.";
+
+            audioTasks.Add(GenerateAndStoreTtsAudio(explanation, resp.LlmResponseNumber, bucketStructure, sessionId));
+        }
+
+        // Convert the result of Task.WhenAll to a List<AudioRecord>
+        var audioRecordsArray = await Task.WhenAll(audioTasks);
+        return audioRecordsArray.ToList();  // Convert array to List<AudioRecord>
+    }
+
+    private async Task<AudioRecord> GenerateAndStoreTtsAudio(string text, int recordNumber, string bucketStructure, string sessionId)
     {
         var apiKey = Environment.GetEnvironmentVariable("TEXT_TO_SPEECH_API_KEY");
         var url = $"https://texttospeech.googleapis.com/v1/text:synthesize?key={apiKey}";
@@ -361,13 +392,17 @@ Assume this will be **used for audio narration**."
                         .WithContentType("audio/mpeg");
                     await _minioClient.PutObjectAsync(putObjectArgs);
 
-                    return new AudioRecord(
-                        audioRecordId: Guid.NewGuid().ToString(),
-                        audioRecordLocation: objectName
-                    )
+                    // Create audio record
+                    var audioRecord = new AudioRecord
                     {
-                        AudioRecordNumber = recordNumber
+                        AudioRecordId = Guid.NewGuid().ToString(),
+                        SessionId = sessionId,
+                        AudioRecordNumber = recordNumber,
+                        AudioRecordLocation = objectName
                     };
+
+                    // Save to database
+                    return _audioRepo.AddAudioRecord(audioRecord);
                 }
             }
 
@@ -379,14 +414,17 @@ Assume this will be **used for audio narration**."
             Console.WriteLine($"Error processing TTS response: {ex.Message}");
             Console.WriteLine($"Response body: {responseBody}");
 
-            // Return a placeholder record with error information
-            return new AudioRecord(
-                audioRecordId: Guid.NewGuid().ToString(),
-                audioRecordLocation: $"error-{recordNumber}"
-            )
+            // Create placeholder record with error information
+            var errorAudioRecord = new AudioRecord
             {
-                AudioRecordNumber = recordNumber
+                AudioRecordId = Guid.NewGuid().ToString(),
+                SessionId = sessionId,
+                AudioRecordNumber = recordNumber,
+                AudioRecordLocation = "Error: Unable to generate audio"
             };
+
+            // Save to database even if it's an error record
+            return _audioRepo.AddAudioRecord(errorAudioRecord);
         }
     }
 }

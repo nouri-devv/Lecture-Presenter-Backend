@@ -1,12 +1,15 @@
 using Minio.AspNetCore;
 using DotNetEnv;
-
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
+builder.Services.AddScoped<ISessionDataAccess, SessionRepository>();
+builder.Services.AddScoped<IAudioDataAccess, AudioRespository>();
+builder.Services.AddScoped<ISlideDataAccess, SlideRepository>();
+builder.Services.AddScoped<LlmResponseRecordDataAccess, LlmResponseRepository>();
 builder.Services.AddMinio(options =>
 {
     options.Endpoint = Environment.GetEnvironmentVariable("MINIO_ENDPOINT");

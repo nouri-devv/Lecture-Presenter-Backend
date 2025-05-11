@@ -4,21 +4,21 @@ public class SlideRepository : ISlideDataAccess, IRepository
 {
     private IRepository _repository => this;
 
-    public SlideRecord CreateSlide(SlideRecord slideRecord, string sessionId)
+    public SlideRecord CreateSlide(SlideRecord slideRecord)
     {
         {
             var sqlParam = new NpgsqlParameter[]
             {
             new("slide_id", slideRecord.SlideId),
+            new("session_id", slideRecord.SessionId),
             new("slide_number", slideRecord.SlideNumber),
-            new("slide_location", slideRecord.SlideLocation),
-            new("session_id", sessionId)
+            new("slide_location", slideRecord.SlideLocation)
             };
 
             var result = _repository.ExecuteReader<SlideRecord>(
-                "INSERT INTO slides (slide_id, slide_number, slide_location, session_id) " +
-                "VALUES (@slide_id, @slide_number, @slide_location, @session_id) " +
-                "RETURNING slide_id, slide_number, slide_location, session_id",
+                "INSERT INTO slides (slide_id, session_id, slide_number, slide_location) " +
+                "VALUES (@slide_id, @session_id, @slide_number, @slide_location) " +
+                "RETURNING slide_id, session_id, slide_number, slide_location",
                 sqlParam).Single();
 
             return result;
