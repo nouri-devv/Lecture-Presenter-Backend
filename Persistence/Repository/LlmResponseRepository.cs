@@ -7,7 +7,6 @@ public class LlmResponseRepository : LlmResponseRecordDataAccess, IRepository
     public LlmResponseRecord AddLlmResponseRecord(LlmResponseRecord llmResponseRecord)
     {
         var sqlParam = new NpgsqlParameter[] {
-            new("llm_response_id", llmResponseRecord.LlmResponseId),
             new("session_id", llmResponseRecord.SessionId),
             new("llm_response_number", llmResponseRecord.LlmResponseNumber),
             new("response_heading", llmResponseRecord.LlmResponseHeading),
@@ -15,9 +14,9 @@ public class LlmResponseRepository : LlmResponseRecordDataAccess, IRepository
         };
 
         var result = _repository.ExecuteReader<LlmResponseRecord>(
-            "INSERT INTO llm_response (llm_response_id, session_id, llm_response_number, response_heading, response_explanation) " +
-            "VALUES (@llm_response_id, @session_id, @llm_response_number, @response_heading, @response_explanation) " +
-            "RETURNING llm_response_id, session_id, llm_response_number, response_heading, response_explanation",
+            "INSERT INTO llm_response (session_id, llm_response_number, response_heading, response_explanation) " +
+            "VALUES (@session_id, @llm_response_number, @response_heading, @response_explanation) " +
+            "RETURNING session_id, llm_response_number, response_heading, response_explanation",
             sqlParam
         ).SingleOrDefault();
 

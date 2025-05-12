@@ -33,16 +33,14 @@ def upload_image(minio_client, image_path, object_name):
 
 
 def process_page(index, image, temp_dir, session_id, minio_client):
-    slide_id = generate_id()
-    object_name = f"sessions/{session_id}/slides/slide_{index + 1:03}_{slide_id}.png"
+    object_name = f"sessions/{session_id}/slides/slide_{index + 1:03}.png"
     image_path = os.path.join(temp_dir, f"slide_{index + 1}.png")
     image.save(image_path, "PNG")
     upload_image(minio_client, image_path, object_name)
 
     return {
-        "slideId": slide_id,
         "slideNumber": index + 1,
-        "slideLocation": f"{BUCKET_NAME}/{object_name}"
+        "slideLocation": f"{object_name}"
     }
 
 

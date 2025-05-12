@@ -1,6 +1,5 @@
 public class LlmResponseRecord
 {
-    public string LlmResponseId { get; set; }
     public string SessionId { get; set; }
     public int LlmResponseNumber { get; set; }
     public string LlmResponseHeading { get; set; }

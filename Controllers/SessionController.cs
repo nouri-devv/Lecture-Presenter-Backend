@@ -149,7 +149,6 @@ public class SessionController : ControllerBase
             {
                 var slideRecord = new SlideRecord
                 {
-                    SlideId = slide.SlideId,
                     SessionId = sessionId,
                     SlideNumber = slide.SlideNumber,
                     SlideLocation = slide.SlideLocation
@@ -279,7 +278,6 @@ Assume this will be **used for audio narration**."
 
                     var llmResponse = new LlmResponseRecord
                     {
-                        LlmResponseId = Guid.NewGuid().ToString(),
                         SessionId = sessionId,
                         LlmResponseNumber = pageNumber,
                         LlmResponseHeading = heading,
@@ -347,7 +345,7 @@ Assume this will be **used for audio narration**."
                 var audioBytes = Convert.FromBase64String(audioBase64);
 
                 string audioFileName = $"audio_{recordNumber:D3}.mp3";
-                string objectName = $"{bucketStructure}/audio/{audioFileName}";
+                string objectName = $"{bucketStructure}/audios/{audioFileName}";
 
                 using var audioStream = new MemoryStream(audioBytes);
 
@@ -362,7 +360,6 @@ Assume this will be **used for audio narration**."
                 // Create audio record
                 var audioRecord = new AudioRecord
                 {
-                    AudioRecordId = Guid.NewGuid().ToString(),
                     SessionId = sessionId,
                     AudioRecordNumber = recordNumber,
                     AudioRecordLocation = objectName
