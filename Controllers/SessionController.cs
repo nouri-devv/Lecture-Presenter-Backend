@@ -345,7 +345,7 @@ Assume this will be **used for audio narration**."
                 var audioBytes = Convert.FromBase64String(audioBase64);
 
                 string audioFileName = $"audio_{number:D3}.mp3";
-                string objectName = $"{bucketStructure}/audio/{audioFileName}";
+                string objectName = $"{bucketStructure}/audios/{audioFileName}";
 
                 using var audioStream = new MemoryStream(audioBytes);
 
