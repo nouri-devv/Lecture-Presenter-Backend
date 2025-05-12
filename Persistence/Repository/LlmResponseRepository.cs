@@ -14,7 +14,7 @@ public class LlmResponseRepository : LlmResponseRecordDataAccess, IRepository
         };
 
         var result = _repository.ExecuteReader<LlmResponseRecord>(
-            "INSERT INTO llm_response (session_id, llm_response_number, response_heading, response_explanation) " +
+            "INSERT INTO llm_responses (session_id, llm_response_number, response_heading, response_explanation) " +
             "VALUES (@session_id, @llm_response_number, @response_heading, @response_explanation) " +
             "RETURNING session_id, llm_response_number, response_heading, response_explanation",
             sqlParam
