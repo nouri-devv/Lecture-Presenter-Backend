@@ -4,7 +4,7 @@ public class SessionRepository : ISessionDataAccess, IRepository
 {
     private IRepository _repository => this;
 
-    public SessionRecord AddSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate)
+    public Session AddSession(string sessionId, DateTime createdDate, DateTime lastModifiedDate)
     {
         var sqlParam = new NpgsqlParameter[]
         {
@@ -13,7 +13,7 @@ public class SessionRepository : ISessionDataAccess, IRepository
             new("last_modified_date", lastModifiedDate),
         };
 
-        var result = _repository.ExecuteReader<SessionRecord>(
+        var result = _repository.ExecuteReader<Session>(
             "INSERT INTO sessions (session_id, created_date, last_modified_date) " +
             "VALUES (@session_id, @created_date, @last_modified_date) " +
             "RETURNING session_id, created_date, last_modified_date",

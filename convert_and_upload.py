@@ -57,7 +57,7 @@ def main(pdf_path, session_id):
     )
 
     images = convert_from_path(pdf_path, dpi=130)
-    slide_records = []
+    slides = []
 
     with tempfile.TemporaryDirectory() as temp_dir:
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -67,10 +67,10 @@ def main(pdf_path, session_id):
             ]
 
             for future in futures:
-                slide_records.append(future.result())
+                slides.append(future.result())
 
-    # Output the slide records as JSON
-    print(json.dumps(slide_records))
+    # Output the slides as JSON
+    print(json.dumps(slides))
 
 
 if __name__ == "__main__":

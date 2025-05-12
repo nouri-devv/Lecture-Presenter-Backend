@@ -1,4 +1,4 @@
 public interface ISlideDataAccess
 {
-    SlideRecord CreateSlide(SlideRecord slideRecord);
+    Slide CreateSlide(Slide slide);
 }

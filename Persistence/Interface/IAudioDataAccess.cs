@@ -1,4 +1,4 @@
 public interface IAudioDataAccess
 {
-    public AudioRecord AddAudioRecord(AudioRecord audioRecord);
+    public Audio AddAudio(Audio audio);
 }

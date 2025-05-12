@@ -9,7 +9,7 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<ISessionDataAccess, SessionRepository>();
 builder.Services.AddScoped<IAudioDataAccess, AudioRespository>();
 builder.Services.AddScoped<ISlideDataAccess, SlideRepository>();
-builder.Services.AddScoped<LlmResponseRecordDataAccess, LlmResponseRepository>();
+builder.Services.AddScoped<LlmResponseDataAccess, LlmResponseRepository>();
 builder.Services.AddMinio(options =>
 {
     options.Endpoint = Environment.GetEnvironmentVariable("MINIO_ENDPOINT");

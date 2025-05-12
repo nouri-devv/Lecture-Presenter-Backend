@@ -14,7 +14,7 @@ public class SessionController : ControllerBase
 {
     private readonly ISessionDataAccess _sessionRepo;
     private readonly ISlideDataAccess _slideRepo;
-    private readonly LlmResponseRecordDataAccess _llmResponseRepo;
+    private readonly LlmResponseDataAccess _llmResponseRepo;
     private readonly IAudioDataAccess _audioRepo;
     private readonly IMinioClient _minioClient;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -23,7 +23,7 @@ public class SessionController : ControllerBase
     public SessionController(
         ISessionDataAccess sessionRepo,
         ISlideDataAccess slideRepo,
-        LlmResponseRecordDataAccess llmResponseRepo,
+        LlmResponseDataAccess llmResponseRepo,
         IAudioDataAccess audioRepo,
         IMinioClient minioClient,
         IHttpClientFactory httpClientFactory)
@@ -42,7 +42,7 @@ public class SessionController : ControllerBase
         try
         {
             if (file == null)
-                return BadRequest("File record cannot be null.");
+                return BadRequest("File cannot be null.");
 
             // Read file content once
             byte[] fileContent;
@@ -60,30 +60,30 @@ public class SessionController : ControllerBase
             _sessionRepo.AddSession(sessionId, DateTime.UtcNow, DateTime.UtcNow);
 
             // Process slides and LLM responses in parallel
-            var slideTask = HandleSlideRecords(fileContent, bucketStructure, sessionId);
-            var llmTask = HandleLlmResponseRecords(fileContent, sessionId);
+            var slideTask = HandleSlides(fileContent, bucketStructure, sessionId);
+            var llmTask = HandleLlmResponses(fileContent, sessionId);
 
             await Task.WhenAll(slideTask, llmTask);
 
-            var slideRecords = await slideTask;
-            var llmResponseRecords = await llmTask;
+            var slides = await slideTask;
+            var llmResponses = await llmTask;
 
             // Process audio files
-            var audioRecords = await HandleAudioRecords(llmResponseRecords, bucketStructure, sessionId);
+            var audios = await HandleAudios(llmResponses, bucketStructure, sessionId);
 
             var response = new
             {
                 SessionId = sessionId,
-                SlideRecords = slideRecords,
-                LlmResponseRecords = llmResponseRecords,
-                AudioRecords = audioRecords
+                Slides = slides,
+                LlmResponses = llmResponses,
+                Audios = audios
             };
 
             return Ok(response);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error creating file record: {ex.Message}");
+            Console.WriteLine($"Error creating file: {ex.Message}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
 
             return StatusCode(500, new
@@ -101,9 +101,9 @@ public class SessionController : ControllerBase
         return Path.GetFullPath(Path.Combine(dir, "..", "..", ".."));
     }
 
-    private async Task<List<SlideRecord>> HandleSlideRecords(byte[] fileContent, string bucketStructure, string sessionId)
+    private async Task<List<Slide>> HandleSlides(byte[] fileContent, string bucketStructure, string sessionId)
     {
-        var response = new List<SlideRecord>();
+        var response = new List<Slide>();
         string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
         string tempPdfPath = Path.Combine(tempDir, "upload.pdf");
@@ -136,25 +136,25 @@ public class SessionController : ControllerBase
             }
 
             // Parse JSON from stdout
-            var parsedSlideRecords = System.Text.Json.JsonSerializer.Deserialize<List<SlideRecord>>(stdout, new System.Text.Json.JsonSerializerOptions
+            var parsedSlides = System.Text.Json.JsonSerializer.Deserialize<List<Slide>>(stdout, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
-            if (parsedSlideRecords == null)
-                throw new Exception("Failed to deserialize slide records from Python script.");
+            if (parsedSlides == null)
+                throw new Exception("Failed to deserialize slides from Python script.");
 
-            // Save each slide record to the database
-            foreach (var slide in parsedSlideRecords)
+            // Save each slide to the database
+            foreach (var slide in parsedSlides)
             {
-                var slideRecord = new SlideRecord
+                var slideObj = new Slide
                 {
                     SessionId = sessionId,
                     SlideNumber = slide.SlideNumber,
                     SlideLocation = slide.SlideLocation
                 };
-                _slideRepo.CreateSlide(slideRecord);
-                response.Add(slideRecord);
+                _slideRepo.CreateSlide(slideObj);
+                response.Add(slideObj);
             }
         }
         finally
@@ -167,7 +167,7 @@ public class SessionController : ControllerBase
         return response;
     }
 
-    private async Task<List<LlmResponseRecord>> HandleLlmResponseRecords(byte[] fileContent, string sessionId)
+    private async Task<List<LlmResponse>> HandleLlmResponses(byte[] fileContent, string sessionId)
     {
         var base64File = Convert.ToBase64String(fileContent);
 
@@ -253,7 +253,7 @@ Assume this will be **used for audio narration**."
         if (!response.IsSuccessStatusCode)
             throw new Exception($"LLM API request failed: {responseContent}");
 
-        var result = new List<LlmResponseRecord>();
+        var result = new List<LlmResponse>();
 
         // Parse Gemini response with safe access to properties
         var parsed = JsonSerializer.Deserialize<JsonElement>(responseContent);
@@ -276,7 +276,7 @@ Assume this will be **used for audio narration**."
                     var explanation = args.TryGetProperty("explanation", out var e) ? e.GetString() : "No explanation provided";
                     var pageNumber = args.TryGetProperty("pageNumber", out var p) && p.TryGetInt32(out int pageNum) ? pageNum : 0;
 
-                    var llmResponse = new LlmResponseRecord
+                    var llmResponse = new LlmResponse
                     {
                         SessionId = sessionId,
                         LlmResponseNumber = pageNumber,
@@ -285,7 +285,7 @@ Assume this will be **used for audio narration**."
                     };
 
                     // Save to database
-                    _llmResponseRepo.AddLlmResponseRecord(llmResponse);
+                    _llmResponseRepo.AddLlmResponse(llmResponse);
                     result.Add(llmResponse);
                 }
             }
@@ -294,9 +294,9 @@ Assume this will be **used for audio narration**."
         return result;
     }
 
-    private async Task<List<AudioRecord>> HandleAudioRecords(List<LlmResponseRecord> llmResponses, string bucketStructure, string sessionId)
+    private async Task<List<Audio>> HandleAudios(List<LlmResponse> llmResponses, string bucketStructure, string sessionId)
     {
-        var audioTasks = new List<Task<AudioRecord>>();
+        var audioTasks = new List<Task<Audio>>();
 
         foreach (var resp in llmResponses)
         {
@@ -307,12 +307,12 @@ Assume this will be **used for audio narration**."
             audioTasks.Add(GenerateAndStoreTtsAudio(explanation, resp.LlmResponseNumber, bucketStructure, sessionId));
         }
 
-        // Convert the result of Task.WhenAll to a List<AudioRecord>
-        var audioRecordsArray = await Task.WhenAll(audioTasks);
-        return audioRecordsArray.ToList();
+        // Convert the result of Task.WhenAll to a List<Audio>
+        var audiosArray = await Task.WhenAll(audioTasks);
+        return audiosArray.ToList();
     }
 
-    private async Task<AudioRecord> GenerateAndStoreTtsAudio(string text, int recordNumber, string bucketStructure, string sessionId)
+    private async Task<Audio> GenerateAndStoreTtsAudio(string text, int number, string bucketStructure, string sessionId)
     {
         var apiKey = Environment.GetEnvironmentVariable("TEXT_TO_SPEECH_API_KEY");
         var url = $"https://texttospeech.googleapis.com/v1/text:synthesize?key={apiKey}";
@@ -344,9 +344,8 @@ Assume this will be **used for audio narration**."
             {
                 var audioBytes = Convert.FromBase64String(audioBase64);
 
-
-                string audioFileName = $"audio_{recordNumber:D3}.mp3";
-                string objectName = $"{bucketStructure}/audios/{audioFileName}";
+                string audioFileName = $"audio_{number:D3}.mp3";
+                string objectName = $"{bucketStructure}/audio/{audioFileName}";
 
                 using var audioStream = new MemoryStream(audioBytes);
 
@@ -358,17 +357,17 @@ Assume this will be **used for audio narration**."
                     .WithContentType("audio/mpeg");
                 await _minioClient.PutObjectAsync(putObjectArgs);
 
-                // Create audio record
-                var audioRecord = new AudioRecord
+                // Create audio
+                var audio = new Audio
                 {
                     SessionId = sessionId,
-                    AudioRecordNumber = recordNumber,
-                    AudioRecordLocation = objectName
+                    AudioNumber = number,
+                    AudioLocation = objectName
                 };
 
                 // Save to database
-                _audioRepo.AddAudioRecord(audioRecord);
-                return audioRecord;
+                _audioRepo.AddAudio(audio);
+                return audio;
             }
         }
 
