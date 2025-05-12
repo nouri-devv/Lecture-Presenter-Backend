@@ -74,6 +74,7 @@ public class SessionController : ControllerBase
             var response = new
             {
                 SessionId = sessionId,
+                totalSlides = slides.Count,
                 Slides = slides,
                 LlmResponses = llmResponses,
                 Audios = audios
@@ -320,8 +321,17 @@ Assume this will be **used for audio narration**."
         var requestBody = new
         {
             input = new { text },
-            voice = new { languageCode = "en-US", name = "en-US-Wavenet-D" },
-            audioConfig = new { audioEncoding = "MP3" }
+            voice = new
+            {
+                languageCode = "en-US",
+                name = "en-US-Chirp3-HD-Zephyr"  // Highly natural female voice
+            },
+            audioConfig = new
+            {
+                audioEncoding = "MP3",
+                pitch = 0,
+                speakingRate = 1.0
+            }
         };
 
         var client = _httpClientFactory.CreateClient();
