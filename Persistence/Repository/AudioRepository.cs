@@ -16,10 +16,9 @@ public class AudioRespository : IRepository, IAudioDataAccess
 
         var result = _repository.ExecuteReader<Audio>(
             "INSERT INTO audios (session_id, audio_number, audio_location) " +
-            "VALUES (@session_id, @audio_number, @audio_location) " +
-            "RETURNING session_id, audio_number, audio_location",
+            "VALUES (@session_id, @audio_number, @audio_location) ",
             sqlParameters).SingleOrDefault();
 
-        return result;
+        return audio;
     }
 }

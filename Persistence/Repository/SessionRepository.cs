@@ -15,8 +15,7 @@ public class SessionRepository : ISessionDataAccess, IRepository
 
         var result = _repository.ExecuteReader<Session>(
             "INSERT INTO sessions (session_id, created_date, last_modified_date) " +
-            "VALUES (@session_id, @created_date, @last_modified_date) " +
-            "RETURNING session_id, created_date, last_modified_date",
+            "VALUES (@session_id, @created_date, @last_modified_date) ",
             sqlParam).SingleOrDefault();
 
         return result;

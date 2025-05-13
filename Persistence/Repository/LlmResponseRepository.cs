@@ -13,14 +13,13 @@ public class LlmResponseRepository : LlmResponseDataAccess, IRepository
             new("llm_response_explanation", llmResponse.LlmResponseExplanation)
         };
 
-        var result = _repository.ExecuteReader<LlmResponse>(
+        _repository.ExecuteReader<LlmResponse>(
             "INSERT INTO llm_responses (session_id, llm_response_number, llm_response_heading, llm_response_explanation) " +
-            "VALUES (@session_id, @llm_response_number, @llm_response_heading, @llm_response_explanation) " +
-            "RETURNING session_id, llm_response_number, llm_response_heading, llm_response_explanation",
+            "VALUES (@session_id, @llm_response_number, @llm_response_heading, @llm_response_explanation) ",
             sqlParam
         ).SingleOrDefault();
 
-        return result;
+        return llmResponse;
     }
 
     public LlmResponse GetLlmResponse(string sessionId, int LlmResponseNumber)

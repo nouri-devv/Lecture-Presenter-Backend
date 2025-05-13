@@ -14,13 +14,12 @@ public class SlideRepository : ISlideDataAccess, IRepository
             new("slide_location", slide.SlideLocation)
             };
 
-            var result = _repository.ExecuteReader<Slide>(
+            _repository.ExecuteReader<Slide>(
                 "INSERT INTO slides (session_id, slide_number, slide_location) " +
-                "VALUES (@session_id, @slide_number, @slide_location) " +
-                "RETURNING session_id, slide_number, slide_location",
+                "VALUES (@session_id, @slide_number, @slide_location) ",
                 sqlParam).SingleOrDefault();
 
-            return result;
+            return slide;
         }
     }
 }

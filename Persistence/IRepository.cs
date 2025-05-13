@@ -1,11 +1,9 @@
 using DotNetEnv;
 using Npgsql;
 
-// NOT USED YET
-
 public interface IRepository
 {
-    public List<T> ExecuteReader<T>(string sqlCommand, NpgsqlParameter[] dbParams = null) where T : class, new()
+    public List<T> ExecuteReader<T>(string sqlCommand, NpgsqlParameter[] dbParams) where T : class, new()
     {
         var entities = new List<T>();
         string CONNECTION_STRING = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ?? throw new InvalidOperationException("DB_CONNECTION_STRING environment variable is not set");
@@ -25,7 +23,7 @@ public interface IRepository
         while (dr.Read())
         {
             var entity = new T();
-            dr.MapTo(entity); // AUTOMATIC ORM WILL HAPPEN HERE. MapTo does not exist yet.MS
+            dr.MapTo(entity);
             entities.Add(entity);
         }
 
