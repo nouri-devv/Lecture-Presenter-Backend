@@ -81,6 +81,7 @@ public class UserController : ControllerBase
         return Ok(user);
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login()
     {

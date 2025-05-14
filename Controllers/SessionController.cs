@@ -5,10 +5,10 @@ using System.Text.Json;
 using System.Net.Http.Headers;
 using System.Text;
 using Minio.DataModel.Args;
-using Sprache;
-using System.Runtime.InteropServices.JavaScript;
+using Microsoft.AspNetCore.Authorization;
 
 [ApiController]
+[Authorize]
 [Route("api/new-session")]
 public class SessionController : ControllerBase
 {

@@ -1,9 +1,10 @@
-
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Minio;
 using Minio.DataModel.Args;
 
 [ApiController]
+[Authorize]
 [Route("api/audios")]
 public class AudioController : ControllerBase
 {

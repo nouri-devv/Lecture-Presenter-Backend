@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Minio;
 using Minio.DataModel.Args;
 
 [ApiController]
+[Authorize]
 [Route("api/slides")]
 public class SlideController : ControllerBase
 {
