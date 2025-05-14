@@ -59,9 +59,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseCors("AllowNextJS");
 app.MapControllers();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors("AllowNextJS");
 app.MapGet("/", () => "Hello World!");
 app.Run();
