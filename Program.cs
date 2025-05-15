@@ -21,21 +21,41 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Cookies["token"];
+            if (!string.IsNullOrEmpty(token))
+            {
+                context.Token = token;
+            }
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            return Task.CompletedTask;
+        }
+    };
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
-        ValidIssuer = "yourapp", // Replace with your actual issuer
+        ValidIssuer = "yourapp",
 
         ValidateAudience = true,
-        ValidAudience = "yourapp", // Replace with your actual audience
+        ValidAudience = "yourapp",
 
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? throw new InvalidOperationException("JWT_SECRET_KEY is not configured.")
-        )),
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(
+                Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ??
+                throw new InvalidOperationException("JWT_SECRET_KEY is not configured.")
+            )
+        ),
 
-        ValidateLifetime = true, // Ensure the token hasn't expired
-        ClockSkew = TimeSpan.Zero // Optional: Adjust for clock skew if needed
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
     };
 });
 builder.Services.AddMinio(options =>
