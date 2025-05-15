@@ -19,7 +19,8 @@ public class UserController : ControllerBase
         _userDataAccess = userDataAccess;
     }
 
-    [HttpPost]
+    [HttpPost("signup")]
+    [AllowAnonymous]
     public async Task<IActionResult> CreateUser()
     {
         using var reader = new StreamReader(Request.Body);
